@@ -1,24 +1,28 @@
-# ---- Step 1: Build the application ----
+# ---- Build Stage ----
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 RUN npm install
 
 COPY . .
-RUN npm run build
 
-# ---- Step 2: Start the app using production image ----
+# Static HTML を生成
+RUN npm run build && npx next export
+
+# ---- Serve Stage ----
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy only what's needed to run the app
-COPY --from=builder /app ./
+# 静的ファイルだけコピー
+COPY --from=builder /app/out ./out
 
-ENV NODE_ENV=production
-ENV PORT=3000
+RUN npm install -g serve
+
 EXPOSE 3000
+ENV PORT=3000
 
-CMD ["npm", "start"]
+# `serve` を使って静的ファイルをホスティング
+CMD ["serve", "-s", "out", "-l", "3000"]
