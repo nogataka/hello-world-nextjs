@@ -2,12 +2,12 @@
   "name": "hello-world-nextjs",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "next build && next export",
-  "start": "serve -s out -l 3000",
-  "lint": "next lint"
-},
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && next export",
+    "start": "serve -s out -l 3000",
+    "lint": "next lint"
+  },
   "dependencies": {
     "next": "13.5.5",
     "react": "^18",
