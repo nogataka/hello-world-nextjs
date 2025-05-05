@@ -3,26 +3,30 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# 依存関係のインストール
 COPY package.json package-lock.json* ./
 RUN npm install
 
+# アプリの全ファイルをコピー
 COPY . .
 
-# Static HTML を生成
+# ビルド＆静的ファイル出力
 RUN npm run build && npx next export
 
-# ---- Serve Stage ----
+# ---- Production Stage ----
 FROM node:18-alpine
 
 WORKDIR /app
 
-# 静的ファイルだけコピー
+# 静的ファイルのみコピー
 COPY --from=builder /app/out ./out
 
+# 静的ファイル用のHTTPサーバーをインストール
 RUN npm install -g serve
 
+# ポート開放と環境変数
 EXPOSE 3000
 ENV PORT=3000
 
-# `serve` を使って静的ファイルをホスティング
+# アプリを起動（CapRoverは $PORT を渡してくる）
 CMD ["serve", "-s", "out", "-l", "3000"]
