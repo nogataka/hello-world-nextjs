@@ -10,8 +10,8 @@ RUN npm install
 # アプリの全ファイルをコピー
 COPY . .
 
-# ビルド＆静的ファイル出力
-RUN npm run build && npx next export
+# ビルド（next exportは不要）
+RUN npm run build
 
 # ---- Production Stage ----
 FROM node:18-alpine
@@ -25,8 +25,8 @@ COPY --from=builder /app/out ./out
 RUN npm install -g serve
 
 # ポート開放と環境変数
-EXPOSE 3000
-ENV PORT=3000
+EXPOSE 80
+ENV PORT=80
 
-# アプリを起動（CapRoverは $PORT を渡してくる）
-CMD ["serve", "-s", "out", "-l", "3000"]
+# アプリを起動
+CMD ["serve", "-s", "out"]
