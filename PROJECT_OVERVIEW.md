@@ -313,3 +313,216 @@ className="after:bg-gradient-conic after:from-sky-200 after:via-blue-200"
 
 これらの技術コンポーネントは、モダンなNext.js開発のベストプラクティスを示しており、パフォーマンス、アクセシビリティ、ユーザーエクスペリエンスのすべてを考慮した実装となっています。
 
+## ビルドと展開設定の詳細
+
+### 1. 静的エクスポート設定 (`next.config.js`)
+
+プロジェクトの中核となる静的サイト生成設定：
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    'output': 'export'
+}
+
+module.exports = nextConfig
+```
+
+#### 設定の詳細
+
+**静的エクスポート (`output: 'export'`)**
+- Next.jsアプリケーションを完全な静的HTMLファイルに変換
+- サーバーサイドレンダリング（SSR）を無効化
+- 静的ホスティングサービスでの展開を可能にする
+- CDN配信に最適化された出力
+
+**生成される出力**
+- ビルド時に`out`ディレクトリに静的ファイルを生成
+- HTML、CSS、JavaScript、画像などのアセットを含む
+- 各ページが個別のHTMLファイルとして出力
+
+**制限事項**
+- サーバーサイド機能（API Routes、ISR等）は使用不可
+- 動的ルーティングには制限あり
+- 完全にクライアントサイドでの動作
+
+### 2. Package.json スクリプト設定
+
+開発から本番展開までの完全なワークフロー：
+
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build", 
+    "start": "serve -s out -l 3000",
+    "lint": "next lint"
+  }
+}
+```
+
+#### 各スクリプトの詳細
+
+**開発スクリプト (`npm run dev`)**
+- `next dev`: 開発サーバーを起動
+- ホットリロード機能付き
+- デフォルトポート: 3000
+- 開発時のデバッグとプレビュー用
+
+**ビルドスクリプト (`npm run build`)**
+- `next build`: 本番用ビルドを実行
+- 静的エクスポート設定により`out`ディレクトリに出力
+- コード最適化、圧縮、バンドル化を実行
+- 本番展開前の必須ステップ
+
+**本番開始スクリプト (`npm start`)**
+- `serve -s out -l 3000`: 静的ファイルを配信
+- `-s`: Single Page Application モード
+- `-l 3000`: ポート3000でリッスン
+- `out`ディレクトリの静的ファイルを配信
+
+**リントスクリプト (`npm run lint`)**
+- `next lint`: ESLintによるコード品質チェック
+- Next.js推奨のリントルールを適用
+- コード品質の維持とベストプラクティスの強制
+
+#### 依存関係の詳細
+
+**本番依存関係**
+```json
+{
+  "next": "13.5.5",        // React フレームワーク
+  "react": "^18",          // UIライブラリ  
+  "react-dom": "^18",      // DOM レンダリング
+  "serve": "^14.2.1"       // 静的ファイル配信サーバー
+}
+```
+
+**開発依存関係**
+```json
+{
+  "autoprefixer": "^10",   // CSS ベンダープレフィックス自動付与
+  "postcss": "^8",         // CSS 処理・変換ツール
+  "tailwindcss": "^3"      // ユーティリティファーストCSS
+}
+```
+
+### 3. Docker コンテナ化設定 (`Dockerfile`)
+
+マルチステージビルドによる効率的なコンテナ化：
+
+```dockerfile
+# ---- Build Stage ----
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# 依存関係のインストール
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# アプリの全ファイルをコピー
+COPY . .
+
+# ビルド（next exportは不要）
+RUN npm run build
+
+# ---- Production Stage ----
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 静的ファイルのみコピー
+COPY --from=builder /app/out ./out
+
+# 静的ファイル用のHTTPサーバーをインストール
+RUN npm install -g serve
+
+# ポート開放と環境変数
+EXPOSE 80
+ENV PORT=80
+
+# アプリを起動
+CMD ["serve", "-s", "out"]
+```
+
+#### Docker設定の特徴
+
+**マルチステージビルド**
+1. **ビルドステージ** (`builder`)
+   - Node.js 18 Alpine ベースイメージ使用
+   - 全依存関係をインストール
+   - アプリケーション全体をコピー
+   - `npm run build`で静的ファイル生成
+
+2. **本番ステージ**
+   - 軽量なNode.js 18 Alpine ベースイメージ
+   - ビルドステージから`out`ディレクトリのみコピー
+   - `serve`パッケージをグローバルインストール
+   - 不要なファイルを除外してイメージサイズを最小化
+
+**最適化ポイント**
+- **レイヤーキャッシュ**: `package.json`を先にコピーして依存関係インストールをキャッシュ
+- **イメージサイズ**: 本番ステージには静的ファイルのみ含める
+- **セキュリティ**: Alpine Linuxによる軽量で安全なベースイメージ
+
+**ポート設定**
+- `EXPOSE 80`: コンテナのポート80を開放
+- `ENV PORT=80`: 環境変数でポート設定
+- Kinsta Application Hostingの自動ポート設定に対応
+
+### 4. CapRover 展開設定 (`captain-definition`)
+
+CapRoverプラットフォーム用の展開設定：
+
+```json
+{
+  "schemaVersion": 2,
+  "dockerfilePath": "./Dockerfile"
+}
+```
+
+#### CapRover設定の詳細
+
+**スキーマバージョン**
+- `schemaVersion: 2`: CapRover設定ファイルのバージョン
+- 最新の機能とセキュリティ対応
+
+**Dockerファイルパス**
+- `dockerfilePath: "./Dockerfile"`: 使用するDockerfileの場所を指定
+- ルートディレクトリのDockerfileを使用
+- 自動ビルドとデプロイメントプロセス
+
+**CapRover展開の利点**
+- **自動化**: Gitリポジトリからのワンクリックデプロイメント
+- **スケーリング**: 自動スケーリングとロードバランシング
+- **SSL**: 自動SSL証明書の取得と更新
+- **監視**: アプリケーションの健全性監視
+
+#### 展開ワークフロー
+
+**1. 開発フェーズ**
+```bash
+npm run dev          # 開発サーバー起動
+npm run lint         # コード品質チェック
+```
+
+**2. ビルドフェーズ**
+```bash
+npm run build        # 静的ファイル生成
+```
+
+**3. ローカルテスト**
+```bash
+npm start           # 本番環境シミュレーション
+```
+
+**4. 展開オプション**
+- **Kinsta Static Site**: `out`ディレクトリを直接アップロード
+- **Kinsta Application**: `npm start`でアプリケーション起動
+- **Docker**: コンテナイメージをビルドして展開
+- **CapRover**: Git連携による自動展開
+
+この設定により、開発から本番展開まで一貫したワークフローが実現され、複数の展開オプションに対応した柔軟性の高いプロジェクト構成となっています。
+
+
